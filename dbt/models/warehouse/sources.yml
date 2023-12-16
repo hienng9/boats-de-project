@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: boats
+    database: de-zoomcamp-401109
+    schema: raw_data
+    tables:
+      - name: raw_boats
+

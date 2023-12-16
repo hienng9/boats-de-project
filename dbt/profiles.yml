@@ -1,0 +1,14 @@
+boats:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      keyfile: ${AIRFLOW_HOME}/include/.gcp/de-zoomcamp-creds.json
+      project: de-zoomcamp-401109
+      dataset: dbt_hnguyen
+      job_execution_timeout_seconds: 300
+      job_retries: 1
+      location: europe-west6
+      priority: interactive
+      threads: 1
