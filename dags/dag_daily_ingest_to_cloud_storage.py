@@ -1,8 +1,8 @@
+import os
 from task_fetch_and_save_data import *
 from schema import schema
 from datetime import datetime
 
-# from airflow.decorators import dag, task
 from airflow import DAG
 from airflow.models.baseoperator import chain
 from airflow.utils.dates import days_ago
@@ -12,26 +12,11 @@ from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobO
 from airflow.models.baseoperator import chain
 from airflow.operators.bash_operator import BashOperator
 
-from astro import sql as aql
-from astro.files import File 
-from astro.sql.table import Table, Metadata
-from astro.constants import FileType
-
-# from cosmos import ExecutionConfig, DbtTaskGroup
-# from cosmos.config import RenderConfig
-# from cosmos.constants import LoadMode
-import os
-
-
-# current_date = '20231212'
-
-AIRFLOW_HOME = os.environ['AIRFLOW_HOME']
-dbt_path = os.path.join(AIRFLOW_HOME, 'dbt')
-
-path_to_local_home = AIRFLOW_HOME
+path_to_local_home = os.environ['AIRFLOW_HOME']
+dbt_path = os.path.join(path_to_local_home, 'dbt')
 dataset_file = f"secondhand-boats-{current_date}.parquet"
 
-PROJECT_ID = "de-zoomcamp-401109"
+PROJECT_ID = os.environ['PROJECT_ID']
 BIGQUERY_DATASET = "secondhand_boats"
 RAW_DATASET = "raw_data"
 STAGING_TBL_TABLE = 'stg_boats_tbl'
@@ -39,7 +24,7 @@ BUCKET = "secondhand-boats"
 
 RAW_TABLE = 'raw_boats'
 EXTERNAL_TABLE = 'external_boats_tbl'
-DBT_EXECUTABLE_PATH = '/usr/local/airflow/dbt_env/bin/dbt'
+DBT_EXECUTABLE_PATH = os.environ['DBT_EXECUTABLE_PATH']
 
 default_args = {
     "owner": "airflow",
@@ -48,17 +33,6 @@ default_args = {
     "retries": 1,
 }
 
-# execution_config = ExecutionConfig(
-#     dbt_executable_path=DBT_EXECUTABLE_PATH,
-# )
-# @dag(
-#   dag_id="daily_ingestion_gcs_dag",
-#     schedule="@daily",
-#     default_args=default_args,
-#     catchup=False,
-#     max_active_runs=1,
-#     tags=["daily-veneet-tori.fi"],
-# )
 with DAG(
     dag_id="daily_ingestion_gcs_dag",
     schedule="@daily",
@@ -67,8 +41,6 @@ with DAG(
     max_active_runs=1,
     tags=["daily-veneet-tori.fi"],
 ) as dag:
-# def ingest_and_transform_data():
-
   def execute_query(task_id, query, conn = 'gcp'):
     return BigQueryInsertJobOperator(
       task_id = task_id,
@@ -80,6 +52,8 @@ with DAG(
           }
         })
 
+  # Task 1: Scrape the first 3 pages of the website to get the latest listings.
+  # Save to local disk
   task_fetch_and_save_to_local = PythonOperator(
     task_id = "fetch_and_save_to_local_task",
     python_callable = fetch_all_and_save,
@@ -89,6 +63,7 @@ with DAG(
     }
   )
 
+  # Task 2: Upload the file to Google cloud storage with the credentials provided in airflow.
   task_local_to_gcs = LocalFilesystemToGCSOperator(
     task_id = "local_to_gcs_task",
     src = f"{path_to_local_home}/data/{dataset_file}",
@@ -97,6 +72,8 @@ with DAG(
     dst = dataset_file
   )
 
+  # Query for create or replace the external table in bigquery with the provide schema.
+  # The purpose for providing schema is to make sure bigquery load the parquet file into with correct types.
   create_or_replace_external_table_query = f"""
     CREATE OR REPLACE EXTERNAL TABLE `{PROJECT_ID}.{BIGQUERY_DATASET}.{EXTERNAL_TABLE}` {schema}
     OPTIONS (
@@ -105,21 +82,24 @@ with DAG(
       );
 
     """
-
+  # Task 3: Create or replace the staging table to be loaded in the main table.
   task_create_external_table = execute_query(
     task_id = "create_external_table_task", 
     query=create_or_replace_external_table_query, 
     )
 
+  # Query for create the staging table to be loaded.
   create_staging_table_from_ext_table_query = f"""
     CREATE OR REPLACE TABLE `{PROJECT_ID}.{RAW_DATASET}.{STAGING_TBL_TABLE}` AS
     SELECT * FROM `{PROJECT_ID}.{BIGQUERY_DATASET}.{EXTERNAL_TABLE}`
     """
-
+  # Task 4 for create or replace staging table.
   task_create_staging_table = execute_query(
     task_id="create_staging_table_task", 
     query = create_staging_table_from_ext_table_query)
 
+  # Query for MERGE the staging table to raw_boats with the logic 
+  # if the list_id of the newly scraping data does not exist in previous table, that row will be loaded into the table.
   merge_new_rows_to_raw_table_query = f"""
     MERGE `{PROJECT_ID}.{RAW_DATASET}.{RAW_TABLE}` T
     USING `{PROJECT_ID}.{RAW_DATASET}.{STAGING_TBL_TABLE}` S
@@ -127,17 +107,19 @@ with DAG(
     WHEN NOT MATCHED THEN
     INSERT ROW
     """
-
+  # Task 5: Execute the Merge query.
   task_merge_staging_to_raw_table = execute_query(
     task_id = "task_merge_staging_to_raw_table",
     query = merge_new_rows_to_raw_table_query,
   )
+
+  # Task 6: run dbt run to do the data modelling.
   data_modelling = BashOperator(
     task_id='data_modelling',
-    bash_command= f"cd {AIRFLOW_HOME} && source dbt_env/bin/activate && cd dbt && dbt deps && dbt run"
+    bash_command= f"cd {path_to_local_home} && source dbt_env/bin/activate && cd dbt && dbt deps && dbt run"
   )
  
-  # task_fetch_and_save_to_local >> task_local_to_gcs  >> task_create_external_table >> task_create_staging_table >> task_merge_staging_to_raw_table >> data_modelling
+  # Determine the dependencies between tasks
   chain(
     task_fetch_and_save_to_local , 
     task_local_to_gcs  , 
@@ -145,7 +127,3 @@ with DAG(
     task_create_staging_table , 
     task_merge_staging_to_raw_table ,
     data_modelling)
-  #, data_modelling
-  
-
-# ingest_and_transform_data()

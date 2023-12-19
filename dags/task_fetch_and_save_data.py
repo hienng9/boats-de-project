@@ -6,7 +6,7 @@ import os
 from datetime import datetime, date
 from time import sleep
 
-BASE_URL = "https://autot.tori.fi/veneet/myydaan/moottoriveneet?sivu="
+BASE_URL=os.environ['BASE_URL']
 HEADERS = {
         "User-Agent":
           "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0",
@@ -28,13 +28,9 @@ def fetch_page(page_number: str) -> str:
     return content
   else:
     raise Exception("Error happened when fetching page", response.status_code)
-  json_content = json.loads(content)
-  listing_ads = json_content['props']['pageProps']['initialReduxState']['search']['result']['list_ads']
-  df = pd.json_normalize(listing_ads)
-  return df
-  # 
 
 def unpck(item):
+    """Given a list, extract the string that contains 'hv' for the horse power information."""
     if len(item) > 0:
         for obj in item:
             if 'hv' in obj:
@@ -64,13 +60,14 @@ def fetch_all_and_save(path, number_of_pages):
     content = fetch_page(page_number=str(page_number))
     page_df = convert_to_dataframe(content=content)
     results = pd.concat([results, page_df])
+    # Give it time to make the next request.
     sleep(5)
+  # Bigquery can not read columns that contains dot.
   results.columns = [column.replace('.','_') for column in results.columns]
   results = results.drop_duplicates(subset=["list_id"], keep="first")
   results['EngineHp'] = results['_app_cardDetails'].apply(unpck)
   columns_to_drop=['_app_vehicleBrandId', '_app_vehicleModelId', '_app_price', 
   '_app_title','_app_url','_app_urlAbsolute', '_app_subtitle', '_app_cardDetails']
-  
   results.drop(columns = columns_to_drop, inplace = True)
   if 'polepos_ad' in results.columns:
     results.drop(columns = ['polepos_ad'], inplace = True)
