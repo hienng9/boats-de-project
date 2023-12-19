@@ -17,14 +17,18 @@ from astro.files import File
 from astro.sql.table import Table, Metadata
 from astro.constants import FileType
 
-from cosmos import ExecutionConfig, DbtTaskGroup
-from cosmos.config import RenderConfig
-from cosmos.constants import LoadMode
+# from cosmos import ExecutionConfig, DbtTaskGroup
+# from cosmos.config import RenderConfig
+# from cosmos.constants import LoadMode
+import os
 
-from cosmos_config import DBT_CONFIG, DBT_PROJECT_CONFIG
 
 # current_date = '20231212'
-path_to_local_home = "/usr/local/airflow"
+
+AIRFLOW_HOME = os.environ['AIRFLOW_HOME']
+dbt_path = os.path.join(AIRFLOW_HOME, 'dbt')
+
+path_to_local_home = AIRFLOW_HOME
 dataset_file = f"secondhand-boats-{current_date}.parquet"
 
 PROJECT_ID = "de-zoomcamp-401109"
@@ -44,9 +48,9 @@ default_args = {
     "retries": 1,
 }
 
-execution_config = ExecutionConfig(
-    dbt_executable_path=DBT_EXECUTABLE_PATH,
-)
+# execution_config = ExecutionConfig(
+#     dbt_executable_path=DBT_EXECUTABLE_PATH,
+# )
 # @dag(
 #   dag_id="daily_ingestion_gcs_dag",
 #     schedule="@daily",
@@ -128,34 +132,20 @@ with DAG(
     task_id = "task_merge_staging_to_raw_table",
     query = merge_new_rows_to_raw_table_query,
   )
-  data_modelling = DbtTaskGroup(
-    group_id = 'data_modelling',
-    project_config = DBT_PROJECT_CONFIG,
-    profile_config = DBT_CONFIG,
-    execution_config=execution_config,
-    render_config = RenderConfig(
-      load_method = LoadMode.DBT_LS,
-      select = ['path:models']
+  data_modelling = BashOperator(
+    task_id='data_modelling',
+    bash_command= f"cd {AIRFLOW_HOME} && source dbt_env/bin/activate && cd dbt && dbt deps && dbt run"
   )
-  )
-  # DbtDag(
-  #   dag_id = 'data_modelling_task',
-  #   project_config = DBT_PROJECT_CONFIG,
-  #   profile_config = DBT_CONFIG,
-  #   execution_config = execution_config,
-  #   schedule_interval="@daily",
-  #   start_date=days_ago(1),
-  #   default_args = {"retries": 1}
-  # )
-  # BashOperator(
-  #   task_id='data_modelling',
-  #   bash_command="dbt deps && dbt run ",
-  # )
-  # 
-  #   )
-  
+ 
   # task_fetch_and_save_to_local >> task_local_to_gcs  >> task_create_external_table >> task_create_staging_table >> task_merge_staging_to_raw_table >> data_modelling
-  chain(task_fetch_and_save_to_local , task_local_to_gcs  , task_create_external_table , task_create_staging_table , task_merge_staging_to_raw_table, data_modelling )
+  chain(
+    task_fetch_and_save_to_local , 
+    task_local_to_gcs  , 
+    task_create_external_table , 
+    task_create_staging_table , 
+    task_merge_staging_to_raw_table ,
+    data_modelling)
+  #, data_modelling
   
 
 # ingest_and_transform_data()
