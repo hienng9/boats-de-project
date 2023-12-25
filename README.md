@@ -18,7 +18,7 @@
 3. Task - BigQueryInsertJobOperator: Create an external table from files in Google Cloud Storage
 
 4. Task - BigQueryInsertJobOperator: Create a staging table from external table
-<img src="https://github.com/hienng9/boats-de-project/tree/master/images/BigQuery.png" height="400px" />
+<img src="https://github.com/hienng9/boats-de-project/blob/master/images/BigQuery.png" height="400px" />
 
 5. Task - BigQueryInsertJobOperator: Merge newly scraped data and insert only new rows into existing table
 
@@ -26,7 +26,7 @@
 
 ## Data modelling - Dimensional modelling.
 
-<img src="https://github.com/hienng9/boats-de-project/tree/master/images/Data modelling.png" height="400px" />
+<img src="https://github.com/hienng9/boats-de-project/blob/master/images/Data modelling.png" height="400px" />
 
 ## Credits
 Thanks to [dezoomcamp](https://github.com/DataTalksClub/data-engineering-zoomcamp) for the valuable knowledge and a youtube tutorial from [DataWithMarc](https://www.youtube.com/watch?v=DzxtCxi4YaA&t=1110s)
