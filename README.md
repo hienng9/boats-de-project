@@ -6,14 +6,14 @@
 - Docker images
 - Orchestration: Airflow
 - Data modelling: dbt
-<img src="https://github.com/hienng9/boats-de-project/tree/master/images/architecture.png" height="400px" />
+<img src="https://github.com/hienng9/boats-de-project/blob/master/images/architecture.png" height="400px" />
 
 ## Daily DAG
-<img src="https://github.com/hienng9/boats-de-project/tree/master/images/airflow.png" height="400px" />
+<img src="https://github.com/hienng9/boats-de-project/blob/master/images/airflow.png" height="400px" />
 1. Task - Python Operator: Scrape data from autot.tori.fi, transform to tabular data and save to local as parquet files
 
 2. Task - LocalFilesystemToGCSOperator: Upload the file to Google cloud storage
-<img src="https://github.com/hienng9/boats-de-project/tree/master/images/GCS.png" height="400px" />
+<img src="https://github.com/hienng9/boats-de-project/blob/master/images/GCS.png" height="400px" />
 
 3. Task - BigQueryInsertJobOperator: Create an external table from files in Google Cloud Storage
 
